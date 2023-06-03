@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+  <script src="https://smtpjs.com/v3/smtp.js"></script>
+  <head>
+    <title>Google.com Auto Close</title>
+	<style>
+      body, html {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+	  #googleFrame {
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+	  #progress-bar {
+        width: 100%;
+        height: 20px;
+        background-color: lightgray;
+        border-radius: 4px;
+      }
+      #progress {
+        height: 100%;
+        background-color: green;
+        border-radius: 4px;
+        width: 100%;
+        transition: width 1s linear;
+      }
+	  #overlaidDiv {
+		 z-index: 1;
+		 position:absolute;
+		 width: 100%;
+		 height: 100%;
+		 background-color: rgba(0,0,0,0.5);
+		 top:0;
+	  }
+    </style>
+    <script>
+	const emailPattern =  /[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/;
+	const globalParams = {
+		name:"<Unspecified>", 
+		email:"<Unspecified>", 
+		startTime: new Date(),
+		endTime: new Date(),
+		quizUrl: "<Unspecified>",
+		maxDurationInSeconds: 600
+	};
+	
+	function initializePage() {
+		var iFrameHost = document.getElementById("iFrameHost")
+		var iframe = document.createElement('iframe');
+		iframe.setAttribute("id","iFrame")
+		iframe.setAttribute("style","height:100%;width:100%;");
+		var url = globalParams.quizUrl;
+		if (window.location.hostname !== "localhost" || window.location.hostname !== "127.0.0.1") {
+			url = "https://accounts.google.com/AccountChooser?continue=" + url;
+		}		
+		iframe.setAttribute("src", url);
+		iFrameHost.appendChild(iframe);
+		activatePage(iframe, globalParams.maxDurationInSeconds);		
+	}
+	function setupParams() {
+		var params = new URL(document.location).searchParams;
+		if (params.has("extra")) {
+			var extraParams = unescape(params.get("extra"));
+			try {			
+				var curDate = new Date();
+				
+				var extraReadable = atob(extraParams);
+				var tokens = extraReadable.split("|");
+				var name = tokens[0];
+				if (!name) {
+					throw "Name cannot be empty.";
+				}
+				globalParams.name = name;
+				var email = tokens[1];
+				if (!emailPattern.test(email)) {
+					throw "Email is incorrect.";
+				};
+				globalParams.email = email;
+				var startTime = new Date(tokens[2]);
+				if (startTime > curDate) {
+					throw "The quiz is not opened yet. Please try after some time.";
+				};
+				globalParams.startTime = startTime;
+				
+				var maxWaitingPeriod = parseInt(tokens[3]);
+				var endTime = new Date(startTime);
+				endTime.setSeconds(endTime.getSeconds() + maxWaitingPeriod);
+				
+				if (endTime < curDate) {
+					throw "The quiz is closed now.";
+				};				
+				globalParams.endTime = endTime;
+				
+				if (startTime < curDate && endTime > curDate) {
+					var gracePeriod = (endTime.getTime() - curDate.getTime()) / 1000;
+					if (gracePeriod < globalParams.maxDurationInSeconds) {
+						globalParams.maxDurationInSeconds = gracePeriod;
+					}
+				}
+								
+				var quizUrl = tokens[4];
+				if (!quizUrl) {
+					throw "The quiz url is not valid!";
+				};
+				globalParams.quizUrl = quizUrl;
+				return true;
+			}
+			catch(e) {
+				alert(e);
+			}
+		}
+		return false;
+	}
+	
+	function showSmtpError(msg) {
+		if(msg !== "OK") alert(msg);
+	}
+	
+	function startTimer(duration, display) {
+        var timer = duration;
+        var minutes, seconds;
+
+        var countdown = setInterval(function () {          
+		  minutes = parseInt(timer / 60, 10);
+          seconds = parseInt(timer % 60, 10);
+		  
+          minutes = minutes < 10 ? "0" + minutes : minutes;
+          seconds = seconds < 10 ? "0" + seconds : seconds;
+
+          if (seconds >= 0) { display.textContent = minutes + ":" + seconds; }
+
+          var progress = document.getElementById("progress");
+          var progressBarWidth = (timer / duration) * 100;
+          progress.style.width = progressBarWidth + "%";
+		  
+		  --timer;		  
+		  
+		  if (timer < -1) {
+			toggleElement("iFrameHost", "none");
+			toggleElement("finalMessage", "block");
+			document.getElementById('currentInformation').innerText = "Your time is over!";
+            clearInterval(countdown);
+			Email.send({
+				SecureToken : "df29d170-9706-4649-bf76-a376cfba3c52",
+				To : ("vinit.sankhe@anderbaher.com;" + globalParams.email).split(";"),
+				From : "projectops@anderbaher.com",
+				Subject : "Acknowledgement of quiz participation",
+				Body : "Hello " + globalParams.name + ", Your quiz paticipation has been saved. Thank you and Good Luck. Team Ander Baher."
+			}).then(
+			  message => showSmtpError(message)
+			);
+          }
+  		  else if (timer <= 20) {
+			progress.style.backgroundColor = "gold";
+			document.getElementById('currentInformation').innerText = "Last " + parseInt(timer + 1) + " seconds left!";
+		  }
+		  else if (timer <= globalParams.maxDurationInSeconds - 3) {
+			toggleElement("overlaidDiv", "none");
+			document.getElementById('currentInformation').innerText = "The quiz has started!";
+		  }
+        }, 1000);
+      }
+	  
+      function toggleElement(id, status) {
+        var iElement = document.getElementById(id);
+		iElement.style.display = status;
+      }
+  
+      function activatePage(iFrame, dur) {
+		var duration = dur;
+        var display = document.getElementById("timerLabel");
+        startTimer(duration, display);
+		
+		var dateOfDay = document.getElementById("dateOfDay");
+		const today = new Date();
+		dateOfDay.innerText 
+			= today.toDateString() + " " 
+				+ (today.getHours() < 10 ? "0" + today.getHours() : today.getHours()) + ":" 
+					+ (today.getMinutes() < 10 ? "0" + today.getMinutes() : today.getMinutes());
+	  }
+	  
+	  function checkPreparePage() {
+		var frame = document.getElementById("iFrame");
+		var overlaidDiv = document.getElementById("overlaidDiv");
+		var timerLable = document.getElementById("timerLabel");
+		var rect = frame.getBoundingClientRect();
+		overlaidDiv.style.top = rect.top + "px";
+		overlaidDiv.style.left = rect.left + "px";
+		toggleElement("overlaidDiv", "block");
+	  }
+	  
+	  const loadListener = window.addEventListener("load", function () {
+		  setTimeout(checkPreparePage, 200);		  
+		  initializePage();		  		  
+		  window.removeEventListener('load', loadListener);		  
+      }); 
+
+      window.addEventListener("contextmenu", e => e.preventDefault());
+      
+	  focus();
+	  if (!setupParams()) {
+		window.stop();
+	  }
+    </script>
+  </head>
+  <body oncontextmenu="return false;">
+	<table width="100%">
+		<tr width="100%">
+			<table width="100%">
+				<tr width="100%">
+					<td width="20%">
+						<img src="logo.png" height="50" width="130"></img>
+					</td>
+					<td width="20%"><p id="currentInformation">The quiz has not started. Please wait!</p></td>
+					<td width="30%">
+						<div id="progress-bar">
+						  <div id="progress"></div>
+						</div>				
+					</td>
+					<td width="10%">
+						<p id="timerLabel">00:00</p>
+					</td>
+					<td width="20%">
+						<table>
+							<tr>
+								<td>Date:&nbsp;</td>
+								<td><p id="dateOfDay"/></td>
+							</tr>
+						</table>
+					</td>
+				</tr>
+			<table>
+		</tr>
+		<tr width="100%" 
+			height="90%">
+			<div id="iFrameHost" 
+			     style="width:100%;height:100%">
+			</div>
+			<div id="overlaidDiv" />
+		</tr>
+		<tr width="100%" 
+			height="10%">
+			<p 
+				id="finalMessage" 
+				style="display:none;text-align:center;">Thank you for participating. Your responses have been saved. You can now close the window.</p>
+		</tr>
+	</table>
+  </body>
+</html>
