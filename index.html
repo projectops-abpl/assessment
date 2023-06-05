@@ -53,9 +53,9 @@
 		iframe.setAttribute("id","iFrame")
 		iframe.setAttribute("style","height:100%;width:100%;");
 		var url = globalParams.quizUrl;
-		if (window.location.hostname !== "localhost" || window.location.hostname !== "127.0.0.1") {
+		/*if (window.location.hostname !== "localhost" || window.location.hostname !== "127.0.0.1") {
 			url = "https://accounts.google.com/AccountChooser?continue=" + url;
-		}		
+		}*/
 		iframe.setAttribute("src", url);
 		iFrameHost.appendChild(iframe);
 		activatePage(iframe, globalParams.maxDurationInSeconds);		
